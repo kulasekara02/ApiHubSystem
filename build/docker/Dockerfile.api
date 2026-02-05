@@ -1,0 +1,45 @@
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Copy solution and project files
+COPY ["ApiHubSystem.sln", "."]
+COPY ["Directory.Build.props", "."]
+COPY ["Directory.Packages.props", "."]
+COPY ["src/ApiHub.Domain/ApiHub.Domain.csproj", "src/ApiHub.Domain/"]
+COPY ["src/ApiHub.Shared/ApiHub.Shared.csproj", "src/ApiHub.Shared/"]
+COPY ["src/ApiHub.Application/ApiHub.Application.csproj", "src/ApiHub.Application/"]
+COPY ["src/ApiHub.Infrastructure/ApiHub.Infrastructure.csproj", "src/ApiHub.Infrastructure/"]
+COPY ["src/ApiHub.Api/ApiHub.Api.csproj", "src/ApiHub.Api/"]
+
+# Restore packages
+RUN dotnet restore "src/ApiHub.Api/ApiHub.Api.csproj"
+
+# Copy source code
+COPY ["src/", "src/"]
+
+# Build
+WORKDIR "/src/src/ApiHub.Api"
+RUN dotnet build "ApiHub.Api.csproj" -c Release -o /app/build
+
+# Publish
+FROM build AS publish
+RUN dotnet publish "ApiHub.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+EXPOSE 8080
+EXPOSE 8081
+
+# Create non-root user
+RUN adduser --disabled-password --gecos '' appuser
+USER appuser
+
+COPY --from=publish /app/publish .
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["dotnet", "ApiHub.Api.dll"]

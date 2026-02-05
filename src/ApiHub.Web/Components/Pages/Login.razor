@@ -1,0 +1,88 @@
+@page "/login"
+@layout EmptyLayout
+
+<PageTitle>Login - ApiHub</PageTitle>
+
+<div class="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="card shadow-lg" style="width: 400px;">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <h2 class="mb-1"><i class="bi bi-diagram-3 text-primary"></i> ApiHub</h2>
+                <p class="text-muted">Sign in to your account</p>
+            </div>
+
+            <EditForm Model="_loginModel" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <InputText @bind-Value="_loginModel.Email" class="form-control" placeholder="admin@apihub.local" />
+                    <ValidationMessage For="() => _loginModel.Email" class="text-danger small" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <InputText @bind-Value="_loginModel.Password" type="password" class="form-control" placeholder="Enter your password" />
+                    <ValidationMessage For="() => _loginModel.Password" class="text-danger small" />
+                </div>
+
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="remember" @bind="_loginModel.RememberMe">
+                    <label class="form-check-label" for="remember">Remember me</label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger py-2">@_errorMessage</div>
+                }
+
+                <button type="submit" class="btn btn-primary w-100" disabled="@_isLoading">
+                    @if (_isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Sign In
+                </button>
+            </EditForm>
+
+            <hr class="my-4" />
+
+            <p class="text-center mb-0">
+                <a href="/register" class="text-decoration-none">Don't have an account? Register</a>
+            </p>
+
+            <div class="mt-4 p-3 bg-light rounded">
+                <p class="small mb-2 fw-bold">Demo Accounts:</p>
+                <ul class="small mb-0 ps-3">
+                    <li>admin@apihub.local / Admin@123!</li>
+                    <li>analyst@apihub.local / Analyst@123!</li>
+                    <li>viewer@apihub.local / Viewer@123!</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel _loginModel = new();
+    private bool _isLoading = false;
+    private string? _errorMessage;
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        await Task.Delay(1000); // Simulate API call
+
+        // TODO: Implement actual login
+        _isLoading = false;
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public bool RememberMe { get; set; }
+    }
+}

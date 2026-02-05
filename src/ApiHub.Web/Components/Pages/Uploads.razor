@@ -1,0 +1,205 @@
+@page "/uploads"
+
+<PageTitle>Upload & Plot - ApiHub</PageTitle>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Upload File</h5>
+            </div>
+            <div class="card-body">
+                <div class="upload-area border border-2 border-dashed rounded p-4 text-center mb-3"
+                     style="cursor: pointer;">
+                    <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                    <p class="mb-1">Drag and drop files here</p>
+                    <p class="text-muted small mb-2">or click to browse</p>
+                    <InputFile OnChange="HandleFileSelected" class="d-none" id="fileInput" accept=".csv,.json,.png,.jpg,.jpeg" />
+                    <label for="fileInput" class="btn btn-outline-primary">Select File</label>
+                </div>
+                <p class="text-muted small mb-0">Supported: CSV, JSON, PNG, JPG (max 50MB)</p>
+            </div>
+        </div>
+
+        @if (_uploadedFile != null)
+        {
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">File Info</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5">Name:</dt>
+                        <dd class="col-7">@_uploadedFile.Name</dd>
+                        <dt class="col-5">Size:</dt>
+                        <dd class="col-7">@FormatFileSize(_uploadedFile.Size)</dd>
+                        <dt class="col-5">Rows:</dt>
+                        <dd class="col-7">@(_uploadedFile.RowCount ?? 0)</dd>
+                        <dt class="col-5">Columns:</dt>
+                        <dd class="col-7">@(_uploadedFile.ColumnCount ?? 0)</dd>
+                    </dl>
+                </div>
+            </div>
+        }
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Uploads</h5>
+            </div>
+            <div class="list-group list-group-flush">
+                @foreach (var file in _recentUploads)
+                {
+                    <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi @GetFileIcon(file.Type) me-2"></i>
+                            @file.Name
+                            <br />
+                            <small class="text-muted">@file.UploadedAt.ToString("MMM dd, HH:mm")</small>
+                        </div>
+                        <span class="badge bg-secondary">@FormatFileSize(file.Size)</span>
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Data Preview</h5>
+                @if (_previewData.Any())
+                {
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary @(_viewMode == "table" ? "active" : "")"
+                                @onclick="() => _viewMode = &quot;table&quot;">
+                            <i class="bi bi-table"></i> Table
+                        </button>
+                        <button class="btn btn-outline-primary @(_viewMode == "chart" ? "active" : "")"
+                                @onclick="() => _viewMode = &quot;chart&quot;">
+                            <i class="bi bi-bar-chart"></i> Chart
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="card-body">
+                @if (!_previewData.Any())
+                {
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-file-earmark-arrow-up fs-1 d-block mb-2"></i>
+                        Upload a file to see preview
+                    </div>
+                }
+                else if (_viewMode == "table")
+                {
+                    <div class="table-responsive" style="max-height: 400px;">
+                        <table class="table table-sm table-striped">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    @foreach (var header in _headers)
+                                    {
+                                        <th>@header</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in _previewData.Take(100))
+                                {
+                                    <tr>
+                                        @foreach (var header in _headers)
+                                        {
+                                            <td>@(row.TryGetValue(header, out var value) ? value : "")</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (_previewData.Count > 100)
+                    {
+                        <p class="text-muted text-center mt-2">Showing first 100 of @_previewData.Count rows</p>
+                    }
+                }
+                else
+                {
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Chart Type</label>
+                            <select class="form-select" @bind="_chartType">
+                                <option value="bar">Bar Chart</option>
+                                <option value="line">Line Chart</option>
+                                <option value="pie">Pie Chart</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">X-Axis</label>
+                            <select class="form-select" @bind="_xAxis">
+                                @foreach (var header in _headers)
+                                {
+                                    <option value="@header">@header</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Y-Axis</label>
+                            <select class="form-select" @bind="_yAxis">
+                                @foreach (var header in _headers)
+                                {
+                                    <option value="@header">@header</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="dataChart" height="300"></canvas>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private UploadedFileInfo? _uploadedFile;
+    private string _viewMode = "table";
+    private string _chartType = "bar";
+    private string _xAxis = "";
+    private string _yAxis = "";
+
+    private List<string> _headers = new() { "id", "name", "email", "status" };
+    private List<Dictionary<string, object>> _previewData = new()
+    {
+        new() { ["id"] = 1, ["name"] = "John Doe", ["email"] = "john@example.com", ["status"] = "active" },
+        new() { ["id"] = 2, ["name"] = "Jane Smith", ["email"] = "jane@example.com", ["status"] = "active" },
+        new() { ["id"] = 3, ["name"] = "Bob Wilson", ["email"] = "bob@example.com", ["status"] = "inactive" }
+    };
+
+    private List<RecentUpload> _recentUploads = new()
+    {
+        new("users.csv", "csv", 15360, DateTime.Now.AddHours(-2)),
+        new("sales_data.json", "json", 45678, DateTime.Now.AddDays(-1)),
+        new("chart.png", "image", 234567, DateTime.Now.AddDays(-3))
+    };
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        _uploadedFile = new UploadedFileInfo(file.Name, file.Size, 150, 4);
+        await Task.CompletedTask;
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+
+    private string GetFileIcon(string type) => type switch
+    {
+        "csv" => "bi-file-earmark-spreadsheet text-success",
+        "json" => "bi-file-earmark-code text-warning",
+        "image" => "bi-file-earmark-image text-info",
+        _ => "bi-file-earmark"
+    };
+
+    private record UploadedFileInfo(string Name, long Size, int? RowCount, int? ColumnCount);
+    private record RecentUpload(string Name, string Type, long Size, DateTime UploadedAt);
+}

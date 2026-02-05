@@ -1,0 +1,236 @@
+@page "/analytics"
+
+<PageTitle>Analytics - ApiHub</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Analytics Dashboard</h4>
+    <div class="d-flex gap-2">
+        <select class="form-select" style="width: auto;">
+            <option>Last 7 days</option>
+            <option selected>Last 30 days</option>
+            <option>Last 90 days</option>
+            <option>Custom range</option>
+        </select>
+        <select class="form-select" style="width: auto;">
+            <option value="">All Connectors</option>
+            <option>JSONPlaceholder</option>
+            <option>Petstore</option>
+            <option>ReqRes</option>
+        </select>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">Total Requests</h6>
+                <h2 class="mb-0">12,847</h2>
+                <small class="text-success"><i class="bi bi-arrow-up"></i> 12.5% vs last period</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">Success Rate</h6>
+                <h2 class="mb-0 text-success">98.2%</h2>
+                <small class="text-success"><i class="bi bi-arrow-up"></i> 0.5% vs last period</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">Avg Response Time</h6>
+                <h2 class="mb-0">245ms</h2>
+                <small class="text-danger"><i class="bi bi-arrow-down"></i> 8ms slower</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-2">Error Count</h6>
+                <h2 class="mb-0 text-danger">231</h2>
+                <small class="text-success"><i class="bi bi-arrow-down"></i> 15% fewer errors</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Request Volume Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="volumeChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Status Code Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="statusPieChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Response Time Percentiles</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Percentile</th>
+                            <th>Value</th>
+                            <th>Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>p50 (Median)</td>
+                            <td>189ms</td>
+                            <td class="text-success"><i class="bi bi-arrow-down"></i> -5ms</td>
+                        </tr>
+                        <tr>
+                            <td>p75</td>
+                            <td>267ms</td>
+                            <td class="text-success"><i class="bi bi-arrow-down"></i> -12ms</td>
+                        </tr>
+                        <tr>
+                            <td>p90</td>
+                            <td>412ms</td>
+                            <td class="text-danger"><i class="bi bi-arrow-up"></i> +8ms</td>
+                        </tr>
+                        <tr>
+                            <td>p95</td>
+                            <td>534ms</td>
+                            <td class="text-danger"><i class="bi bi-arrow-up"></i> +23ms</td>
+                        </tr>
+                        <tr>
+                            <td>p99</td>
+                            <td>892ms</td>
+                            <td class="text-success"><i class="bi bi-arrow-down"></i> -45ms</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Top Error Endpoints</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Endpoint</th>
+                            <th>Errors</th>
+                            <th>Error Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>POST /pet</code></td>
+                            <td>45</td>
+                            <td><span class="badge bg-warning">5.2%</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>GET /user/repos</code></td>
+                            <td>38</td>
+                            <td><span class="badge bg-warning">4.1%</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>DELETE /posts/{id}</code></td>
+                            <td>21</td>
+                            <td><span class="badge bg-success">1.8%</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>PUT /users/{id}</code></td>
+                            <td>15</td>
+                            <td><span class="badge bg-success">1.2%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Connector Comparison</h5>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Connector</th>
+                    <th>Requests</th>
+                    <th>Success Rate</th>
+                    <th>Avg Latency</th>
+                    <th>p95 Latency</th>
+                    <th>Errors</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>JSONPlaceholder</strong></td>
+                    <td>4,521</td>
+                    <td><span class="badge bg-success">99.8%</span></td>
+                    <td>156ms</td>
+                    <td>312ms</td>
+                    <td>9</td>
+                </tr>
+                <tr>
+                    <td><strong>Swagger Petstore</strong></td>
+                    <td>3,892</td>
+                    <td><span class="badge bg-success">97.5%</span></td>
+                    <td>234ms</td>
+                    <td>567ms</td>
+                    <td>97</td>
+                </tr>
+                <tr>
+                    <td><strong>ReqRes</strong></td>
+                    <td>2,789</td>
+                    <td><span class="badge bg-success">99.2%</span></td>
+                    <td>189ms</td>
+                    <td>398ms</td>
+                    <td>22</td>
+                </tr>
+                <tr>
+                    <td><strong>GitHub API</strong></td>
+                    <td>1,234</td>
+                    <td><span class="badge bg-warning">94.1%</span></td>
+                    <td>345ms</td>
+                    <td>892ms</td>
+                    <td>73</td>
+                </tr>
+                <tr>
+                    <td><strong>OpenWeather</strong></td>
+                    <td>411</td>
+                    <td><span class="badge bg-success">98.8%</span></td>
+                    <td>412ms</td>
+                    <td>734ms</td>
+                    <td>5</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+}

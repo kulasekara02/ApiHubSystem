@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apihub-api
+  labels:
+    app: apihub-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: apihub-api
+  template:
+    metadata:
+      labels:
+        app: apihub-api
+    spec:
+      containers:
+      - name: api
+        image: ghcr.io/your-org/apihub-api:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: apihub-secrets
+              key: database-connection
+        - name: Jwt__Secret
+          valueFrom:
+            secretKeyRef:
+              name: apihub-secrets
+              key: jwt-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apihub-api
+spec:
+  selector:
+    app: apihub-api
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apihub-web
+  labels:
+    app: apihub-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: apihub-web
+  template:
+    metadata:
+      labels:
+        app: apihub-web
+    spec:
+      containers:
+      - name: web
+        image: ghcr.io/your-org/apihub-web:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ApiBaseUrl
+          value: "http://apihub-api"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apihub-web
+spec:
+  selector:
+    app: apihub-web
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP

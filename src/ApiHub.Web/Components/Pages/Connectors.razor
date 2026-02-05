@@ -1,0 +1,123 @@
+@page "/connectors"
+
+<PageTitle>Connectors - ApiHub</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">API Connectors</h4>
+    <button class="btn btn-primary" @onclick="ShowAddModal">
+        <i class="bi bi-plus-lg me-1"></i> Add Connector
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="Search connectors..."
+                       @bind="_searchTerm" @bind:event="oninput" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_statusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Error">Error</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Base URL</th>
+                    <th>Auth Type</th>
+                    <th>Status</th>
+                    <th>Endpoints</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var connector in FilteredConnectors)
+                {
+                    <tr>
+                        <td>
+                            <strong>@connector.Name</strong>
+                            <br />
+                            <small class="text-muted">@connector.Description</small>
+                        </td>
+                        <td><code>@connector.BaseUrl</code></td>
+                        <td>
+                            <span class="badge @GetAuthBadgeClass(connector.AuthType)">
+                                @connector.AuthType
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge @GetStatusBadgeClass(connector.Status)">
+                                @connector.Status
+                            </span>
+                        </td>
+                        <td>@connector.EndpointCount endpoints</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" title="View">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-success" title="Test">
+                                    <i class="bi bi-play"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private string _searchTerm = "";
+    private string _statusFilter = "";
+
+    private List<ConnectorViewModel> _connectors = new()
+    {
+        new(Guid.NewGuid(), "JSONPlaceholder", "Free fake REST API for testing", "https://jsonplaceholder.typicode.com", "None", "Active", true, 7),
+        new(Guid.NewGuid(), "Swagger Petstore", "Sample Petstore server", "https://petstore.swagger.io/v2", "ApiKey", "Active", true, 5),
+        new(Guid.NewGuid(), "ReqRes", "Test your front-end against a real API", "https://reqres.in/api", "None", "Active", true, 5),
+        new(Guid.NewGuid(), "GitHub API", "GitHub REST API v3", "https://api.github.com", "Bearer", "Active", false, 4),
+        new(Guid.NewGuid(), "OpenWeather", "Current weather and forecasts", "https://api.openweathermap.org/data/2.5", "ApiKey", "Active", false, 2)
+    };
+
+    private IEnumerable<ConnectorViewModel> FilteredConnectors => _connectors
+        .Where(c => string.IsNullOrEmpty(_searchTerm) ||
+                    c.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    c.Description.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Where(c => string.IsNullOrEmpty(_statusFilter) || c.Status == _statusFilter);
+
+    private void ShowAddModal()
+    {
+        // TODO: Implement modal
+    }
+
+    private string GetAuthBadgeClass(string authType) => authType switch
+    {
+        "None" => "bg-secondary",
+        "ApiKey" => "bg-info",
+        "Bearer" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Active" => "bg-success",
+        "Inactive" => "bg-secondary",
+        "Error" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private record ConnectorViewModel(Guid Id, string Name, string Description, string BaseUrl, string AuthType, string Status, bool IsPublic, int EndpointCount);
+}
