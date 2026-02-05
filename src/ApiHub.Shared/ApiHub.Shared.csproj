@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ApiHub.Shared</RootNamespace>
+  </PropertyGroup>
+</Project>
