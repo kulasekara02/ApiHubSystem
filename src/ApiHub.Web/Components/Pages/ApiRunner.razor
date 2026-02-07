@@ -140,14 +140,7 @@
 
         _response = new ResponseViewModel(
             200,
-            """
-            {
-              "userId": 1,
-              "id": 1,
-              "title": "Sample Response",
-              "completed": false
-            }
-            """,
+            "{\n  \"userId\": 1,\n  \"id\": 1,\n  \"title\": \"Sample Response\",\n  \"completed\": false\n}",
             new Dictionary<string, string>
             {
                 ["Content-Type"] = "application/json",

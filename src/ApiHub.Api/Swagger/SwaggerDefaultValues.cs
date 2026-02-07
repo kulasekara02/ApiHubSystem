@@ -41,14 +41,10 @@ public class SwaggerDefaultValues : IOperationFilter
 
             if (parameter.Schema.Default == null &&
                 description.DefaultValue != null &&
-                description.DefaultValue is not DBNull &&
-                description.ModelMetadata is { } modelMetadata)
+                description.DefaultValue is not DBNull)
             {
-                var json = System.Text.Json.JsonSerializer.Serialize(
-                    description.DefaultValue,
-                    modelMetadata.ModelType);
-                parameter.Schema.Default = Microsoft.OpenApi.Any.OpenApiAnyFactory
-                    .CreateFromJson(json);
+                parameter.Schema.Default = new Microsoft.OpenApi.Any.OpenApiString(
+                    description.DefaultValue.ToString());
             }
 
             parameter.Required |= description.IsRequired;
