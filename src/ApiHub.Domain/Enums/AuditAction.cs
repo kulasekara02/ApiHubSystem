@@ -17,5 +17,10 @@ public enum AuditAction
     UserCreated = 50,
     UserUpdated = 51,
     UserDeleted = 52,
-    RoleChanged = 53
+    RoleChanged = 53,
+    ScheduledJobCreated = 60,
+    ScheduledJobUpdated = 61,
+    ScheduledJobDeleted = 62,
+    ScheduledJobToggled = 63,
+    ScheduledJobExecuted = 64
 }

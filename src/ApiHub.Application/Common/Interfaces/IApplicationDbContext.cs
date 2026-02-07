@@ -15,6 +15,11 @@ public interface IApplicationDbContext
     DbSet<Report> Reports { get; }
     DbSet<UploadedFile> UploadedFiles { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<RequestTemplate> RequestTemplates { get; }
+    DbSet<ScheduledJob> ScheduledJobs { get; }
+    DbSet<ScheduledJobExecution> ScheduledJobExecutions { get; }
+    DbSet<Webhook> Webhooks { get; }
+    DbSet<WebhookDelivery> WebhookDeliveries { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

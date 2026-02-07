@@ -28,6 +28,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<Report> Reports => Set<Report>();
     public DbSet<UploadedFile> UploadedFiles => Set<UploadedFile>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<RequestTemplate> RequestTemplates => Set<RequestTemplate>();
+    public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
+    public DbSet<ScheduledJobExecution> ScheduledJobExecutions => Set<ScheduledJobExecution>();
+    public DbSet<Webhook> Webhooks => Set<Webhook>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
