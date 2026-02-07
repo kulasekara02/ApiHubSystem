@@ -20,6 +20,8 @@ public interface IApplicationDbContext
     DbSet<ScheduledJobExecution> ScheduledJobExecutions { get; }
     DbSet<Webhook> Webhooks { get; }
     DbSet<WebhookDelivery> WebhookDeliveries { get; }
+    DbSet<UserTwoFactorToken> UserTwoFactorTokens { get; }
+    DbSet<Notification> Notifications { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -4,6 +4,7 @@ using ApiHub.Domain.Entities;
 using ApiHub.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace ApiHub.Application.Features.Auth.Commands;
 
@@ -14,19 +15,25 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginRes
     private readonly ITokenService _tokenService;
     private readonly IAuditService _auditService;
     private readonly IDateTime _dateTime;
+    private readonly IApplicationDbContext _context;
+    private readonly ITwoFactorService _twoFactorService;
 
     public LoginCommandHandler(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         ITokenService tokenService,
         IAuditService auditService,
-        IDateTime dateTime)
+        IDateTime dateTime,
+        IApplicationDbContext context,
+        ITwoFactorService twoFactorService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _tokenService = tokenService;
         _auditService = auditService;
         _dateTime = dateTime;
+        _context = context;
+        _twoFactorService = twoFactorService;
     }
 
     public async Task<Result<LoginResponse>> Handle(LoginCommand request, CancellationToken cancellationToken)
@@ -53,6 +60,49 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginRes
         if (!result.Succeeded)
         {
             return Result<LoginResponse>.Failure("Invalid email or password.");
+        }
+
+        // Check if 2FA is enabled for the user
+        var twoFactorToken = await _context.UserTwoFactorTokens
+            .FirstOrDefaultAsync(t => t.UserId == user.Id && t.IsEnabled, cancellationToken);
+
+        if (twoFactorToken != null)
+        {
+            // 2FA is enabled, check if code is provided
+            if (string.IsNullOrWhiteSpace(request.TwoFactorCode))
+            {
+                // Return response indicating 2FA is required
+                return Result<LoginResponse>.Success(new LoginResponse(
+                    user.Id,
+                    user.Email!,
+                    user.FirstName,
+                    user.LastName,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>(),
+                    RequiresTwoFactor: true));
+            }
+
+            // Validate the 2FA code
+            var isValidCode = _twoFactorService.ValidateCode(twoFactorToken.SecretKey, request.TwoFactorCode);
+
+            // If TOTP code is invalid, check recovery codes
+            if (!isValidCode)
+            {
+                var recoveryCodeIndex = twoFactorToken.RecoveryCodes.IndexOf(request.TwoFactorCode.ToUpperInvariant());
+                if (recoveryCodeIndex >= 0)
+                {
+                    // Valid recovery code, remove it from the list
+                    twoFactorToken.RecoveryCodes.RemoveAt(recoveryCodeIndex);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    isValidCode = true;
+                }
+            }
+
+            if (!isValidCode)
+            {
+                return Result<LoginResponse>.Failure("Invalid two-factor authentication code.");
+            }
         }
 
         var roles = await _userManager.GetRolesAsync(user);

@@ -5,7 +5,8 @@ namespace ApiHub.Application.Features.Auth.Commands;
 
 public record LoginCommand(
     string Email,
-    string Password) : IRequest<Result<LoginResponse>>;
+    string Password,
+    string? TwoFactorCode = null) : IRequest<Result<LoginResponse>>;
 
 public record LoginResponse(
     Guid UserId,
@@ -14,4 +15,5 @@ public record LoginResponse(
     string LastName,
     string AccessToken,
     string RefreshToken,
-    IEnumerable<string> Roles);
+    IEnumerable<string> Roles,
+    bool RequiresTwoFactor = false);

@@ -19,4 +19,5 @@ public class ApplicationUser : IdentityUser<Guid>
     public virtual ICollection<Report> Reports { get; set; } = new List<Report>();
     public virtual ICollection<UploadedFile> UploadedFiles { get; set; } = new List<UploadedFile>();
     public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+    public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

@@ -22,5 +22,8 @@ public enum AuditAction
     ScheduledJobUpdated = 61,
     ScheduledJobDeleted = 62,
     ScheduledJobToggled = 63,
-    ScheduledJobExecuted = 64
+    ScheduledJobExecuted = 64,
+    TemplateCreated = 70,
+    TemplateUpdated = 71,
+    TemplateDeleted = 72
 }
