@@ -71,11 +71,11 @@
                 {
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-primary @(_viewMode == "table" ? "active" : "")"
-                                @onclick="() => _viewMode = &quot;table&quot;">
+                                @onclick="@(() => SetViewMode("table"))">
                             <i class="bi bi-table"></i> Table
                         </button>
                         <button class="btn btn-outline-primary @(_viewMode == "chart" ? "active" : "")"
-                                @onclick="() => _viewMode = &quot;chart&quot;">
+                                @onclick="@(() => SetViewMode("chart"))">
                             <i class="bi bi-bar-chart"></i> Chart
                         </button>
                     </div>
@@ -199,6 +199,11 @@
         "image" => "bi-file-earmark-image text-info",
         _ => "bi-file-earmark"
     };
+
+    private void SetViewMode(string mode)
+    {
+        _viewMode = mode;
+    }
 
     private record UploadedFileInfo(string Name, long Size, int? RowCount, int? ColumnCount);
     private record RecentUpload(string Name, string Type, long Size, DateTime UploadedAt);
