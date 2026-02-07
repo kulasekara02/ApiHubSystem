@@ -1,5 +1,6 @@
 using ApiHub.Application.Common.Interfaces;
 using ApiHub.Domain.Entities;
+using ApiHub.Infrastructure.BackgroundJobs;
 using ApiHub.Infrastructure.ExternalApis.GitHub;
 using ApiHub.Infrastructure.ExternalApis.JsonPlaceholder;
 using ApiHub.Infrastructure.ExternalApis.OpenWeather;
@@ -70,6 +71,10 @@ public static class DependencyInjection
         services.AddScoped<IFileParser, FileParser>();
         services.AddScoped<IReportGenerator, ReportGenerator>();
         services.AddScoped<ICacheService, CacheService>();
+        services.AddScoped<ITwoFactorService, TwoFactorService>();
+        services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IScheduledJobService, ScheduledJobService>();
 
         // Redis Cache
         var redisConnection = configuration.GetConnectionString("Redis");
@@ -105,6 +110,13 @@ public static class DependencyInjection
         // Generic HTTP client for dynamic connectors
         services.AddHttpClient("DynamicConnector")
             .AddApiResilienceHandler("DynamicConnector");
+
+        // HTTP client for webhook deliveries
+        services.AddHttpClient("WebhookClient")
+            .ConfigureHttpClient(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
 
         return services;
     }

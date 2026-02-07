@@ -24,13 +24,13 @@ public class MarkAsReadCommandHandler : IRequestHandler<MarkAsReadCommand, Resul
     public async Task<Result<bool>> Handle(MarkAsReadCommand request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.UserId;
-        if (userId == null)
+        if (!userId.HasValue)
         {
             return Result<bool>.Failure("User not authenticated");
         }
 
         var notification = await _context.Notifications
-            .FirstOrDefaultAsync(n => n.Id == request.NotificationId && n.UserId == Guid.Parse(userId), cancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == request.NotificationId && n.UserId == userId.Value, cancellationToken);
 
         if (notification == null)
         {

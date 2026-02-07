@@ -1,0 +1,626 @@
+@page "/templates"
+@inject NavigationManager Navigation
+@inject ApiHub.Web.Services.ApiRunnerStateService ApiRunnerState
+
+<PageTitle>Request Templates - ApiHub</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Request Templates</h4>
+    <button class="btn btn-primary" @onclick="ShowCreateModal">
+        <i class="bi bi-plus-lg me-1"></i> New Template
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="Search templates..."
+                       @bind="_searchTerm" @bind:event="oninput" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_methodFilter">
+                    <option value="">All Methods</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_visibilityFilter">
+                    <option value="">All Visibility</option>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (!FilteredTemplates.Any())
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-file-earmark-code fs-1 d-block mb-2"></i>
+                <p>No templates found. Create your first template to get started!</p>
+            </div>
+        }
+        else
+        {
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Method</th>
+                        <th>Endpoint</th>
+                        <th>Connector</th>
+                        <th>Visibility</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var template in FilteredTemplates)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@template.Name</strong>
+                                @if (!string.IsNullOrEmpty(template.Description))
+                                {
+                                    <br />
+                                    <small class="text-muted">@template.Description</small>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @GetMethodBadgeClass(template.Method)">
+                                    @template.Method
+                                </span>
+                            </td>
+                            <td><code>@template.Endpoint</code></td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(template.ConnectorName))
+                                {
+                                    <span class="badge bg-info">@template.ConnectorName</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>
+                                @if (template.IsPublic)
+                                {
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-globe me-1"></i> Public
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-lock me-1"></i> Private
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <small>@template.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                <br />
+                                <small class="text-muted">by @template.CreatedByName</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-success" title="Use Template"
+                                            @onclick="() => UseTemplate(template)">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                    <button class="btn btn-outline-primary" title="View"
+                                            @onclick="() => ViewTemplate(template)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" title="Edit"
+                                            @onclick="() => EditTemplate(template)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" title="Delete"
+                                            @onclick="() => DeleteTemplate(template)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+@if (_showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_isEditing ? "Edit Template" : "New Template")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" @bind="_editModel.Name"
+                                   placeholder="My API Template" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-select" @bind="_editModel.IsPublic">
+                                <option value="false">Private</option>
+                                <option value="true">Public</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="2" @bind="_editModel.Description"
+                                      placeholder="Brief description of this template..."></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Connector</label>
+                            <select class="form-select" @bind="_editModel.ConnectorId">
+                                <option value="">None (Custom URL)</option>
+                                @foreach (var connector in _connectors)
+                                {
+                                    <option value="@connector.Id">@connector.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Method *</label>
+                            <select class="form-select" @bind="_editModel.Method">
+                                <option>GET</option>
+                                <option>POST</option>
+                                <option>PUT</option>
+                                <option>PATCH</option>
+                                <option>DELETE</option>
+                                <option>HEAD</option>
+                                <option>OPTIONS</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <!-- Spacer -->
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Endpoint *</label>
+                            <input type="text" class="form-control" @bind="_editModel.Endpoint"
+                                   placeholder="/api/users/{id}" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Headers (JSON)</label>
+                            <textarea class="form-control font-monospace" rows="3" @bind="_editModel.Headers"
+                                      placeholder='{"Content-Type": "application/json", "Authorization": "Bearer {token}"}'></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Query Parameters (JSON)</label>
+                            <textarea class="form-control font-monospace" rows="2" @bind="_editModel.QueryParams"
+                                      placeholder='{"page": "1", "limit": "10"}'></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Request Body (JSON)</label>
+                            <textarea class="form-control font-monospace" rows="5" @bind="_editModel.Body"
+                                      placeholder='{"name": "John", "email": "john@example.com"}'></textarea>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@_errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveTemplate" disabled="@_isSaving">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(_isEditing ? "Update" : "Create") Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- View Modal -->
+@if (_showViewModal && _selectedTemplate != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <span class="badge @GetMethodBadgeClass(_selectedTemplate.Method) me-2">
+                            @_selectedTemplate.Method
+                        </span>
+                        @_selectedTemplate.Name
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseViewModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_selectedTemplate.Description))
+                    {
+                        <p class="text-muted">@_selectedTemplate.Description</p>
+                    }
+
+                    <div class="mb-3">
+                        <strong>Endpoint:</strong>
+                        <code class="ms-2">@_selectedTemplate.Endpoint</code>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_selectedTemplate.ConnectorName))
+                    {
+                        <div class="mb-3">
+                            <strong>Connector:</strong>
+                            <span class="badge bg-info ms-2">@_selectedTemplate.ConnectorName</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_selectedTemplate.Headers))
+                    {
+                        <div class="mb-3">
+                            <strong>Headers:</strong>
+                            <pre class="bg-light p-2 rounded mt-1">@FormatJson(_selectedTemplate.Headers)</pre>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_selectedTemplate.QueryParams))
+                    {
+                        <div class="mb-3">
+                            <strong>Query Parameters:</strong>
+                            <pre class="bg-light p-2 rounded mt-1">@FormatJson(_selectedTemplate.QueryParams)</pre>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_selectedTemplate.Body))
+                    {
+                        <div class="mb-3">
+                            <strong>Request Body:</strong>
+                            <pre class="bg-light p-2 rounded mt-1">@FormatJson(_selectedTemplate.Body)</pre>
+                        </div>
+                    }
+
+                    <div class="row text-muted small">
+                        <div class="col">
+                            <i class="bi bi-person me-1"></i> Created by @_selectedTemplate.CreatedByName
+                        </div>
+                        <div class="col text-end">
+                            <i class="bi bi-calendar me-1"></i> @_selectedTemplate.CreatedAt.ToString("MMM dd, yyyy HH:mm")
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseViewModal">Close</button>
+                    <button type="button" class="btn btn-success" @onclick="() => UseTemplate(_selectedTemplate)">
+                        <i class="bi bi-play-fill me-1"></i> Use Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Delete Confirmation Modal -->
+@if (_showDeleteModal && _templateToDelete != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Template</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDeleteModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete the template "<strong>@_templateToDelete.Name</strong>"?</p>
+                    <p class="text-danger mb-0">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDeleteModal">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete" disabled="@_isDeleting">
+                        @if (_isDeleting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _searchTerm = "";
+    private string _methodFilter = "";
+    private string _visibilityFilter = "";
+    private bool _showModal = false;
+    private bool _showViewModal = false;
+    private bool _showDeleteModal = false;
+    private bool _isEditing = false;
+    private bool _isSaving = false;
+    private bool _isDeleting = false;
+    private string _errorMessage = "";
+    private TemplateEditModel _editModel = new();
+    private TemplateViewModel? _selectedTemplate;
+    private TemplateViewModel? _templateToDelete;
+
+    private List<TemplateViewModel> _templates = new()
+    {
+        new(Guid.NewGuid(), "Get All Users", "Fetch paginated list of users from ReqRes API",
+            Guid.NewGuid(), "ReqRes", "GET", "/api/users",
+            null, null, "{\"page\": \"1\"}", true, Guid.NewGuid(), "Admin User", DateTime.Now.AddDays(-5), null),
+        new(Guid.NewGuid(), "Create User", "Create a new user in the system",
+            Guid.NewGuid(), "ReqRes", "POST", "/api/users",
+            "{\"Content-Type\": \"application/json\"}", "{\"name\": \"morpheus\", \"job\": \"leader\"}", null,
+            true, Guid.NewGuid(), "Admin User", DateTime.Now.AddDays(-3), null),
+        new(Guid.NewGuid(), "Get Weather", "Get current weather for a city",
+            Guid.NewGuid(), "OpenWeather", "GET", "/weather",
+            null, null, "{\"q\": \"London\", \"appid\": \"{API_KEY}\"}",
+            false, Guid.NewGuid(), "John Doe", DateTime.Now.AddDays(-1), null),
+        new(Guid.NewGuid(), "GitHub Repos", "List repositories for authenticated user",
+            Guid.NewGuid(), "GitHub API", "GET", "/user/repos",
+            "{\"Authorization\": \"Bearer {token}\", \"Accept\": \"application/vnd.github.v3+json\"}", null, null,
+            true, Guid.NewGuid(), "Admin User", DateTime.Now.AddHours(-12), null),
+        new(Guid.NewGuid(), "Create Pet", "Add a new pet to the store",
+            Guid.NewGuid(), "Swagger Petstore", "POST", "/pet",
+            "{\"Content-Type\": \"application/json\"}",
+            "{\"name\": \"Buddy\", \"status\": \"available\", \"category\": {\"id\": 1, \"name\": \"Dogs\"}}", null,
+            true, Guid.NewGuid(), "Admin User", DateTime.Now.AddDays(-7), null)
+    };
+
+    private List<ConnectorOption> _connectors = new()
+    {
+        new("1", "JSONPlaceholder"),
+        new("2", "Swagger Petstore"),
+        new("3", "ReqRes"),
+        new("4", "GitHub API"),
+        new("5", "OpenWeather")
+    };
+
+    private IEnumerable<TemplateViewModel> FilteredTemplates => _templates
+        .Where(t => string.IsNullOrEmpty(_searchTerm) ||
+                    t.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    (t.Description?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    t.Endpoint.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Where(t => string.IsNullOrEmpty(_methodFilter) || t.Method == _methodFilter)
+        .Where(t => string.IsNullOrEmpty(_visibilityFilter) ||
+                    (_visibilityFilter == "public" && t.IsPublic) ||
+                    (_visibilityFilter == "private" && !t.IsPublic));
+
+    private void ShowCreateModal()
+    {
+        _editModel = new TemplateEditModel();
+        _isEditing = false;
+        _errorMessage = "";
+        _showModal = true;
+    }
+
+    private void EditTemplate(TemplateViewModel template)
+    {
+        _editModel = new TemplateEditModel
+        {
+            Id = template.Id,
+            Name = template.Name,
+            Description = template.Description,
+            ConnectorId = template.ConnectorId?.ToString() ?? "",
+            Method = template.Method,
+            Endpoint = template.Endpoint,
+            Headers = template.Headers,
+            Body = template.Body,
+            QueryParams = template.QueryParams,
+            IsPublic = template.IsPublic
+        };
+        _isEditing = true;
+        _errorMessage = "";
+        _showModal = true;
+    }
+
+    private void ViewTemplate(TemplateViewModel template)
+    {
+        _selectedTemplate = template;
+        _showViewModal = true;
+    }
+
+    private void DeleteTemplate(TemplateViewModel template)
+    {
+        _templateToDelete = template;
+        _showDeleteModal = true;
+    }
+
+    private void UseTemplate(TemplateViewModel template)
+    {
+        // Set the state service with template data
+        ApiRunnerState.SetFromTemplate(
+            template.ConnectorId?.ToString(),
+            template.Method,
+            template.Endpoint,
+            template.Headers,
+            template.Body,
+            template.QueryParams);
+
+        // Navigate to API Runner
+        Navigation.NavigateTo("/api-runner");
+    }
+
+    private async Task SaveTemplate()
+    {
+        if (string.IsNullOrWhiteSpace(_editModel.Name))
+        {
+            _errorMessage = "Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_editModel.Endpoint))
+        {
+            _errorMessage = "Endpoint is required.";
+            return;
+        }
+
+        _isSaving = true;
+        _errorMessage = "";
+
+        try
+        {
+            // Simulate API call
+            await Task.Delay(500);
+
+            if (_isEditing)
+            {
+                var template = _templates.FirstOrDefault(t => t.Id == _editModel.Id);
+                if (template != null)
+                {
+                    var index = _templates.IndexOf(template);
+                    _templates[index] = template with
+                    {
+                        Name = _editModel.Name,
+                        Description = _editModel.Description,
+                        Method = _editModel.Method,
+                        Endpoint = _editModel.Endpoint,
+                        Headers = _editModel.Headers,
+                        Body = _editModel.Body,
+                        QueryParams = _editModel.QueryParams,
+                        IsPublic = _editModel.IsPublic,
+                        UpdatedAt = DateTime.Now
+                    };
+                }
+            }
+            else
+            {
+                var newTemplate = new TemplateViewModel(
+                    Guid.NewGuid(),
+                    _editModel.Name,
+                    _editModel.Description,
+                    string.IsNullOrEmpty(_editModel.ConnectorId) ? null : Guid.Parse(_editModel.ConnectorId),
+                    _connectors.FirstOrDefault(c => c.Id == _editModel.ConnectorId)?.Name,
+                    _editModel.Method,
+                    _editModel.Endpoint,
+                    _editModel.Headers,
+                    _editModel.Body,
+                    _editModel.QueryParams,
+                    _editModel.IsPublic,
+                    Guid.NewGuid(),
+                    "Current User",
+                    DateTime.Now,
+                    null);
+                _templates.Insert(0, newTemplate);
+            }
+
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error saving template: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_templateToDelete == null) return;
+
+        _isDeleting = true;
+
+        try
+        {
+            // Simulate API call
+            await Task.Delay(300);
+            _templates.Remove(_templateToDelete);
+            CloseDeleteModal();
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        _editModel = new();
+        _errorMessage = "";
+    }
+
+    private void CloseViewModal()
+    {
+        _showViewModal = false;
+        _selectedTemplate = null;
+    }
+
+    private void CloseDeleteModal()
+    {
+        _showDeleteModal = false;
+        _templateToDelete = null;
+    }
+
+    private string GetMethodBadgeClass(string method) => method switch
+    {
+        "GET" => "bg-primary",
+        "POST" => "bg-success",
+        "PUT" => "bg-warning text-dark",
+        "PATCH" => "bg-info",
+        "DELETE" => "bg-danger",
+        "HEAD" => "bg-secondary",
+        "OPTIONS" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private string FormatJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return "";
+        try
+        {
+            var obj = System.Text.Json.JsonSerializer.Deserialize<object>(json);
+            return System.Text.Json.JsonSerializer.Serialize(obj, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private record TemplateViewModel(
+        Guid Id,
+        string Name,
+        string? Description,
+        Guid? ConnectorId,
+        string? ConnectorName,
+        string Method,
+        string Endpoint,
+        string? Headers,
+        string? Body,
+        string? QueryParams,
+        bool IsPublic,
+        Guid CreatedById,
+        string CreatedByName,
+        DateTime CreatedAt,
+        DateTime? UpdatedAt);
+
+    private record ConnectorOption(string Id, string Name);
+
+    private class TemplateEditModel
+    {
+        public Guid? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string ConnectorId { get; set; } = "";
+        public string Method { get; set; } = "GET";
+        public string Endpoint { get; set; } = "";
+        public string? Headers { get; set; }
+        public string? Body { get; set; }
+        public string? QueryParams { get; set; }
+        public bool IsPublic { get; set; } = false;
+    }
+}

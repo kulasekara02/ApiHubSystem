@@ -1,0 +1,667 @@
+@page "/scheduler"
+
+<PageTitle>Scheduler - ApiHub</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Scheduled API Calls</h4>
+    <button class="btn btn-primary" @onclick="ShowCreateModal">
+        <i class="bi bi-plus-lg me-1"></i> Create Scheduled Job
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="Search jobs..."
+                       @bind="_searchTerm" @bind:event="oninput" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_statusFilter">
+                    <option value="">All Status</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_connectorFilter">
+                    <option value="">All Connectors</option>
+                    @foreach (var connector in _connectors)
+                    {
+                        <option value="@connector.Id">@connector.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Jobs Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Job Name</th>
+                    <th>Connector</th>
+                    <th>Endpoint</th>
+                    <th>Schedule</th>
+                    <th>Status</th>
+                    <th>Last Run</th>
+                    <th>Next Run</th>
+                    <th>Success/Fail</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var job in FilteredJobs)
+                {
+                    <tr>
+                        <td>
+                            <strong>@job.Name</strong>
+                            @if (!string.IsNullOrEmpty(job.Description))
+                            {
+                                <br />
+                                <small class="text-muted">@job.Description</small>
+                            }
+                        </td>
+                        <td>@job.ConnectorName</td>
+                        <td>
+                            <span class="badge bg-secondary me-1">@job.Method</span>
+                            <code>@job.Endpoint</code>
+                        </td>
+                        <td>
+                            <code>@job.CronExpression</code>
+                            <br />
+                            <small class="text-muted">@GetCronDescription(job.CronExpression)</small>
+                        </td>
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       checked="@job.IsEnabled"
+                                       @onchange="() => ToggleJob(job)" />
+                            </div>
+                        </td>
+                        <td>
+                            @if (job.LastRunAt.HasValue)
+                            {
+                                <span class="@GetLastRunClass(job.LastRunStatus)">
+                                    @job.LastRunAt.Value.ToString("MM/dd HH:mm")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td>
+                            @if (job.NextRunAt.HasValue)
+                            {
+                                <span>@job.NextRunAt.Value.ToString("MM/dd HH:mm")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="text-success">@job.SuccessCount</span> /
+                            <span class="text-danger">@job.FailureCount</span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-success" title="Run Now"
+                                        @onclick="() => RunJobNow(job)">
+                                    <i class="bi bi-play-fill"></i>
+                                </button>
+                                <button class="btn btn-outline-info" title="View History"
+                                        @onclick="() => ShowHistoryModal(job)">
+                                    <i class="bi bi-clock-history"></i>
+                                </button>
+                                <button class="btn btn-outline-primary" title="Edit"
+                                        @onclick="() => ShowEditModal(job)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" title="Delete"
+                                        @onclick="() => DeleteJob(job)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+@if (_showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_isEditing ? "Edit" : "Create") Scheduled Job</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Job Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="_editingJob.Name"
+                                   placeholder="e.g., Daily User Sync" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Connector <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_editingJob.ConnectorId">
+                                <option value="">Select a connector...</option>
+                                @foreach (var connector in _connectors)
+                                {
+                                    <option value="@connector.Id">@connector.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <input type="text" class="form-control" @bind="_editingJob.Description"
+                                   placeholder="Optional description..." />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Method <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_editingJob.Method">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="PATCH">PATCH</option>
+                                <option value="DELETE">DELETE</option>
+                            </select>
+                        </div>
+                        <div class="col-md-9">
+                            <label class="form-label">Endpoint <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="_editingJob.Endpoint"
+                                   placeholder="e.g., /api/users" />
+                        </div>
+
+                        <!-- Cron Expression Builder -->
+                        <div class="col-12">
+                            <label class="form-label">Schedule (Cron Expression) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" @bind="_editingJob.CronExpression"
+                                       placeholder="e.g., 0 */5 * * *" />
+                                <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                        data-bs-toggle="dropdown">
+                                    Presets
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("* * * * *")'>Every minute</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("*/5 * * * *")'>Every 5 minutes</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("*/15 * * * *")'>Every 15 minutes</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("*/30 * * * *")'>Every 30 minutes</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("0 * * * *")'>Every hour</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("0 */6 * * *")'>Every 6 hours</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("0 0 * * *")'>Every day at midnight</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("0 9 * * *")'>Every day at 9 AM</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("0 0 * * 1")'>Every Monday at midnight</a></li>
+                                    <li><a class="dropdown-item" @onclick='() => SetCronPreset("0 0 1 * *")'>First day of month</a></li>
+                                </ul>
+                            </div>
+                            <small class="text-muted">
+                                @GetCronDescription(_editingJob.CronExpression)
+                            </small>
+                        </div>
+
+                        <!-- Custom Cron Builder -->
+                        <div class="col-12">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-3">Cron Expression Builder</h6>
+                                    <div class="row g-2">
+                                        <div class="col">
+                                            <label class="form-label small">Minute</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="_cronMinute" placeholder="*" />
+                                        </div>
+                                        <div class="col">
+                                            <label class="form-label small">Hour</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="_cronHour" placeholder="*" />
+                                        </div>
+                                        <div class="col">
+                                            <label class="form-label small">Day (Month)</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="_cronDayMonth" placeholder="*" />
+                                        </div>
+                                        <div class="col">
+                                            <label class="form-label small">Month</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="_cronMonth" placeholder="*" />
+                                        </div>
+                                        <div class="col">
+                                            <label class="form-label small">Day (Week)</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="_cronDayWeek" placeholder="*" />
+                                        </div>
+                                        <div class="col-auto d-flex align-items-end">
+                                            <button class="btn btn-sm btn-primary" @onclick="BuildCronExpression">
+                                                Apply
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted mt-2 d-block">
+                                        Format: Minute Hour Day(Month) Month Day(Week) | Use * for any, */n for every n, n-m for range
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Headers (JSON)</label>
+                            <textarea class="form-control" rows="2" @bind="_editingJob.Headers"
+                                      placeholder='{"Content-Type": "application/json"}'></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Request Body (JSON)</label>
+                            <textarea class="form-control" rows="3" @bind="_editingJob.Body"
+                                      placeholder='{"key": "value"}'></textarea>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="_editingJob.IsEnabled" />
+                                <label class="form-check-label">Enable this job immediately</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveJob">
+                        @(_isEditing ? "Update" : "Create") Job
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- History Modal -->
+@if (_showHistoryModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Execution History - @_selectedJob?.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseHistoryModal"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Started At</th>
+                                <th>Completed At</th>
+                                <th>Status</th>
+                                <th>HTTP Code</th>
+                                <th>Duration</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var execution in _executions)
+                            {
+                                <tr>
+                                    <td>@execution.StartedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>@execution.CompletedAt?.ToString("HH:mm:ss")</td>
+                                    <td>
+                                        <span class="badge @GetStatusBadgeClass(execution.Status)">
+                                            @execution.Status
+                                        </span>
+                                    </td>
+                                    <td>@execution.HttpStatusCode</td>
+                                    <td>@execution.DurationMs ms</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(execution.ErrorMessage))
+                                        {
+                                            <span class="text-danger" title="@execution.ErrorMessage">
+                                                @TruncateText(execution.ErrorMessage, 50)
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseHistoryModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _searchTerm = "";
+    private string _statusFilter = "";
+    private string _connectorFilter = "";
+    private bool _showModal = false;
+    private bool _showHistoryModal = false;
+    private bool _isEditing = false;
+    private ScheduledJobViewModel _editingJob = new();
+    private ScheduledJobViewModel? _selectedJob;
+
+    // Cron builder fields
+    private string _cronMinute = "*";
+    private string _cronHour = "*";
+    private string _cronDayMonth = "*";
+    private string _cronMonth = "*";
+    private string _cronDayWeek = "*";
+
+    private List<ConnectorViewModel> _connectors = new()
+    {
+        new(Guid.NewGuid(), "JSONPlaceholder"),
+        new(Guid.NewGuid(), "Swagger Petstore"),
+        new(Guid.NewGuid(), "ReqRes"),
+        new(Guid.NewGuid(), "GitHub API"),
+        new(Guid.NewGuid(), "OpenWeather")
+    };
+
+    private List<ScheduledJobViewModel> _jobs = new()
+    {
+        new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "Sync Users Daily",
+            Description = "Fetches user data from ReqRes API daily",
+            ConnectorId = Guid.NewGuid(),
+            ConnectorName = "ReqRes",
+            Endpoint = "/api/users",
+            Method = "GET",
+            CronExpression = "0 0 * * *",
+            IsEnabled = true,
+            LastRunAt = DateTime.UtcNow.AddHours(-12),
+            NextRunAt = DateTime.UtcNow.AddHours(12),
+            LastRunStatus = "Success",
+            SuccessCount = 45,
+            FailureCount = 2
+        },
+        new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "Weather Check",
+            Description = "Checks weather every 6 hours",
+            ConnectorId = Guid.NewGuid(),
+            ConnectorName = "OpenWeather",
+            Endpoint = "/weather?q=London",
+            Method = "GET",
+            CronExpression = "0 */6 * * *",
+            IsEnabled = true,
+            LastRunAt = DateTime.UtcNow.AddHours(-2),
+            NextRunAt = DateTime.UtcNow.AddHours(4),
+            LastRunStatus = "Success",
+            SuccessCount = 120,
+            FailureCount = 5
+        },
+        new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "Create Test Post",
+            Description = "Creates a test post every hour",
+            ConnectorId = Guid.NewGuid(),
+            ConnectorName = "JSONPlaceholder",
+            Endpoint = "/posts",
+            Method = "POST",
+            CronExpression = "0 * * * *",
+            IsEnabled = false,
+            LastRunAt = DateTime.UtcNow.AddDays(-1),
+            NextRunAt = null,
+            LastRunStatus = "Failed",
+            SuccessCount = 18,
+            FailureCount = 3
+        }
+    };
+
+    private List<ExecutionViewModel> _executions = new();
+
+    private IEnumerable<ScheduledJobViewModel> FilteredJobs => _jobs
+        .Where(j => string.IsNullOrEmpty(_searchTerm) ||
+                    j.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    (j.Description?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false))
+        .Where(j => string.IsNullOrEmpty(_statusFilter) ||
+                    (_statusFilter == "enabled" && j.IsEnabled) ||
+                    (_statusFilter == "disabled" && !j.IsEnabled))
+        .Where(j => string.IsNullOrEmpty(_connectorFilter) ||
+                    j.ConnectorId.ToString() == _connectorFilter);
+
+    private void ShowCreateModal()
+    {
+        _isEditing = false;
+        _editingJob = new ScheduledJobViewModel
+        {
+            Method = "GET",
+            IsEnabled = true,
+            CronExpression = "0 * * * *"
+        };
+        ResetCronBuilder();
+        _showModal = true;
+    }
+
+    private void ShowEditModal(ScheduledJobViewModel job)
+    {
+        _isEditing = true;
+        _editingJob = new ScheduledJobViewModel
+        {
+            Id = job.Id,
+            Name = job.Name,
+            Description = job.Description,
+            ConnectorId = job.ConnectorId,
+            ConnectorName = job.ConnectorName,
+            Endpoint = job.Endpoint,
+            Method = job.Method,
+            Headers = job.Headers,
+            Body = job.Body,
+            CronExpression = job.CronExpression,
+            IsEnabled = job.IsEnabled
+        };
+        ParseCronExpression(job.CronExpression);
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        _editingJob = new();
+    }
+
+    private void SaveJob()
+    {
+        if (_isEditing)
+        {
+            var existingJob = _jobs.FirstOrDefault(j => j.Id == _editingJob.Id);
+            if (existingJob != null)
+            {
+                existingJob.Name = _editingJob.Name;
+                existingJob.Description = _editingJob.Description;
+                existingJob.ConnectorId = _editingJob.ConnectorId;
+                existingJob.Endpoint = _editingJob.Endpoint;
+                existingJob.Method = _editingJob.Method;
+                existingJob.Headers = _editingJob.Headers;
+                existingJob.Body = _editingJob.Body;
+                existingJob.CronExpression = _editingJob.CronExpression;
+                existingJob.IsEnabled = _editingJob.IsEnabled;
+            }
+        }
+        else
+        {
+            var connector = _connectors.FirstOrDefault(c => c.Id == _editingJob.ConnectorId);
+            _editingJob.Id = Guid.NewGuid();
+            _editingJob.ConnectorName = connector?.Name ?? "Unknown";
+            _editingJob.SuccessCount = 0;
+            _editingJob.FailureCount = 0;
+            _jobs.Insert(0, _editingJob);
+        }
+        CloseModal();
+    }
+
+    private void ToggleJob(ScheduledJobViewModel job)
+    {
+        job.IsEnabled = !job.IsEnabled;
+        if (!job.IsEnabled)
+        {
+            job.NextRunAt = null;
+        }
+        else
+        {
+            job.NextRunAt = DateTime.UtcNow.AddMinutes(30); // Simplified
+        }
+    }
+
+    private void DeleteJob(ScheduledJobViewModel job)
+    {
+        _jobs.Remove(job);
+    }
+
+    private void RunJobNow(ScheduledJobViewModel job)
+    {
+        job.LastRunAt = DateTime.UtcNow;
+        job.LastRunStatus = "Success";
+        job.SuccessCount++;
+    }
+
+    private void ShowHistoryModal(ScheduledJobViewModel job)
+    {
+        _selectedJob = job;
+        _executions = new List<ExecutionViewModel>
+        {
+            new(Guid.NewGuid(), job.Id, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(-1).AddSeconds(2), "Success", 200, null, 2045),
+            new(Guid.NewGuid(), job.Id, DateTime.UtcNow.AddHours(-7), DateTime.UtcNow.AddHours(-7).AddSeconds(1), "Success", 200, null, 1523),
+            new(Guid.NewGuid(), job.Id, DateTime.UtcNow.AddHours(-13), DateTime.UtcNow.AddHours(-13).AddSeconds(5), "Failed", 500, "Internal Server Error", 5234),
+            new(Guid.NewGuid(), job.Id, DateTime.UtcNow.AddHours(-19), DateTime.UtcNow.AddHours(-19).AddSeconds(1), "Success", 200, null, 987),
+            new(Guid.NewGuid(), job.Id, DateTime.UtcNow.AddHours(-25), DateTime.UtcNow.AddHours(-25).AddSeconds(2), "Success", 200, null, 1245)
+        };
+        _showHistoryModal = true;
+    }
+
+    private void CloseHistoryModal()
+    {
+        _showHistoryModal = false;
+        _selectedJob = null;
+    }
+
+    private void SetCronPreset(string expression)
+    {
+        _editingJob.CronExpression = expression;
+        ParseCronExpression(expression);
+    }
+
+    private void BuildCronExpression()
+    {
+        _editingJob.CronExpression = $"{_cronMinute} {_cronHour} {_cronDayMonth} {_cronMonth} {_cronDayWeek}";
+    }
+
+    private void ParseCronExpression(string expression)
+    {
+        var parts = expression.Split(' ');
+        if (parts.Length >= 5)
+        {
+            _cronMinute = parts[0];
+            _cronHour = parts[1];
+            _cronDayMonth = parts[2];
+            _cronMonth = parts[3];
+            _cronDayWeek = parts[4];
+        }
+    }
+
+    private void ResetCronBuilder()
+    {
+        _cronMinute = "0";
+        _cronHour = "*";
+        _cronDayMonth = "*";
+        _cronMonth = "*";
+        _cronDayWeek = "*";
+    }
+
+    private string GetCronDescription(string expression)
+    {
+        return expression switch
+        {
+            "* * * * *" => "Every minute",
+            "*/5 * * * *" => "Every 5 minutes",
+            "*/15 * * * *" => "Every 15 minutes",
+            "*/30 * * * *" => "Every 30 minutes",
+            "0 * * * *" => "Every hour",
+            "0 */6 * * *" => "Every 6 hours",
+            "0 0 * * *" => "Every day at midnight",
+            "0 9 * * *" => "Every day at 9:00 AM",
+            "0 0 * * 1" => "Every Monday at midnight",
+            "0 0 1 * *" => "First day of every month",
+            _ => ParseCronToDescription(expression)
+        };
+    }
+
+    private string ParseCronToDescription(string expression)
+    {
+        var parts = expression.Split(' ');
+        if (parts.Length < 5) return "Invalid expression";
+
+        var minute = parts[0];
+        var hour = parts[1];
+
+        if (minute.StartsWith("*/"))
+            return $"Every {minute[2..]} minutes";
+        if (hour.StartsWith("*/"))
+            return $"Every {hour[2..]} hours";
+        if (minute == "0" && hour == "0")
+            return "Daily at midnight";
+        if (minute == "0")
+            return hour == "*" ? "Every hour" : $"Daily at {hour}:00";
+
+        return $"Custom: {expression}";
+    }
+
+    private string GetLastRunClass(string? status) => status switch
+    {
+        "Success" => "text-success",
+        "Failed" => "text-danger",
+        _ => ""
+    };
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Success" => "bg-success",
+        "Failed" => "bg-danger",
+        "Running" => "bg-primary",
+        _ => "bg-secondary"
+    };
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text[..maxLength] + "...";
+    }
+
+    private class ScheduledJobViewModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid ConnectorId { get; set; }
+        public string ConnectorName { get; set; } = string.Empty;
+        public string Endpoint { get; set; } = string.Empty;
+        public string Method { get; set; } = "GET";
+        public string? Headers { get; set; }
+        public string? Body { get; set; }
+        public string CronExpression { get; set; } = string.Empty;
+        public bool IsEnabled { get; set; }
+        public DateTime? LastRunAt { get; set; }
+        public DateTime? NextRunAt { get; set; }
+        public string? LastRunStatus { get; set; }
+        public int SuccessCount { get; set; }
+        public int FailureCount { get; set; }
+    }
+
+    private record ConnectorViewModel(Guid Id, string Name);
+    private record ExecutionViewModel(Guid Id, Guid JobId, DateTime StartedAt, DateTime? CompletedAt, string Status, int? HttpStatusCode, string? ErrorMessage, long? DurationMs);
+}

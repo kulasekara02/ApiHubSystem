@@ -3,6 +3,7 @@ using ApiHub.Application;
 using ApiHub.Infrastructure;
 using ApiHub.Infrastructure.Persistence;
 using ApiHub.Web.Components;
+using ApiHub.Web.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -58,6 +59,9 @@ builder.Services.AddHttpClient("ApiHub", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5001");
 });
+
+// State services for cross-page communication
+builder.Services.AddSingleton<ApiRunnerStateService>();
 
 var app = builder.Build();
 

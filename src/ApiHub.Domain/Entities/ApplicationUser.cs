@@ -20,4 +20,5 @@ public class ApplicationUser : IdentityUser<Guid>
     public virtual ICollection<UploadedFile> UploadedFiles { get; set; } = new List<UploadedFile>();
     public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public virtual ICollection<Webhook> Webhooks { get; set; } = new List<Webhook>();
 }

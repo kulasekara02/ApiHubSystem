@@ -1,0 +1,530 @@
+@page "/webhooks"
+
+<PageTitle>Webhooks - ApiHub</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">Webhook Integrations</h4>
+    <button class="btn btn-primary" @onclick="ShowAddModal">
+        <i class="bi bi-plus-lg me-1"></i> Add Webhook
+    </button>
+</div>
+
+@if (_showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editingWebhook == null ? "Create Webhook" : "Edit Webhook")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" @bind="_webhookForm.Name" placeholder="My Webhook" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">URL (HTTPS required)</label>
+                        <input type="url" class="form-control" @bind="_webhookForm.Url" placeholder="https://example.com/webhook" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Secret @(_editingWebhook != null ? "(leave blank to keep existing)" : "")</label>
+                        <div class="input-group">
+                            <input type="@(_showSecret ? "text" : "password")" class="form-control" @bind="_webhookForm.Secret"
+                                   placeholder="@(_editingWebhook != null ? "Leave blank to keep existing secret" : "Minimum 16 characters")" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="ToggleSecretVisibility">
+                                <i class="bi @(_showSecret ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" @onclick="GenerateSecret">
+                                <i class="bi bi-arrow-repeat"></i> Generate
+                            </button>
+                        </div>
+                        <small class="text-muted">This secret will be used to sign webhook payloads with HMAC-SHA256.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Events</label>
+                        <div class="row g-2">
+                            @foreach (var eventType in _availableEvents)
+                            {
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="@eventType.Key"
+                                               checked="@_webhookForm.SelectedEvents.Contains(eventType.Key)"
+                                               @onchange="(e) => ToggleEvent(eventType.Key, (bool)e.Value!)" />
+                                        <label class="form-check-label" for="@eventType.Key">
+                                            <code>@eventType.Key</code>
+                                            <br /><small class="text-muted">@eventType.Value</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="isEnabled" @bind="_webhookForm.IsEnabled" />
+                            <label class="form-check-label" for="isEnabled">Enabled</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveWebhook">
+                        @(_editingWebhook == null ? "Create" : "Save Changes")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showDeliveriesModal && _selectedWebhook != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delivery History - @_selectedWebhook.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDeliveriesModal"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Event</th>
+                                <th>Status</th>
+                                <th>Duration</th>
+                                <th>Triggered</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var delivery in _deliveries)
+                            {
+                                <tr>
+                                    <td><code>@delivery.Event</code></td>
+                                    <td>
+                                        @if (delivery.IsSuccess)
+                                        {
+                                            <span class="badge bg-success">@delivery.ResponseStatusCode</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">@(delivery.ResponseStatusCode?.ToString() ?? "Error")</span>
+                                            @if (!string.IsNullOrEmpty(delivery.ErrorMessage))
+                                            {
+                                                <br /><small class="text-danger">@delivery.ErrorMessage</small>
+                                            }
+                                        }
+                                    </td>
+                                    <td>@delivery.DurationMs ms</td>
+                                    <td>@delivery.TriggeredAt.ToString("g")</td>
+                                    <td>
+                                        @if (!delivery.IsSuccess)
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => RetryDelivery(delivery.Id)">
+                                                <i class="bi bi-arrow-repeat"></i> Retry
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (!_deliveries.Any())
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-inbox display-4"></i>
+                            <p class="mt-2">No delivery history yet.</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDeliveriesModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showTestResultModal && _testResult != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Test Result</h5>
+                    <button type="button" class="btn-close" @onclick="CloseTestResultModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert @(_testResult.IsSuccess ? "alert-success" : "alert-danger")">
+                        <strong>@(_testResult.IsSuccess ? "Success!" : "Failed")</strong>
+                    </div>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Status Code</dt>
+                        <dd class="col-sm-8">@(_testResult.StatusCode?.ToString() ?? "N/A")</dd>
+                        <dt class="col-sm-4">Duration</dt>
+                        <dd class="col-sm-8">@_testResult.DurationMs ms</dd>
+                        @if (!string.IsNullOrEmpty(_testResult.ErrorMessage))
+                        {
+                            <dt class="col-sm-4">Error</dt>
+                            <dd class="col-sm-8 text-danger">@_testResult.ErrorMessage</dd>
+                        }
+                        @if (!string.IsNullOrEmpty(_testResult.ResponseBody))
+                        {
+                            <dt class="col-sm-4">Response</dt>
+                            <dd class="col-sm-8"><pre class="mb-0" style="max-height: 200px; overflow: auto;">@_testResult.ResponseBody</pre></dd>
+                        }
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseTestResultModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="Search webhooks..."
+                       @bind="_searchTerm" @bind:event="oninput" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_statusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>URL</th>
+                    <th>Events</th>
+                    <th>Status</th>
+                    <th>Last Triggered</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var webhook in FilteredWebhooks)
+                {
+                    <tr>
+                        <td>
+                            <strong>@webhook.Name</strong>
+                            @if (webhook.FailureCount > 0)
+                            {
+                                <br /><small class="text-danger">@webhook.FailureCount consecutive failures</small>
+                            }
+                        </td>
+                        <td><code class="text-truncate d-inline-block" style="max-width: 250px;" title="@webhook.Url">@webhook.Url</code></td>
+                        <td>
+                            @foreach (var evt in webhook.Events.Take(2))
+                            {
+                                <span class="badge bg-info me-1">@evt</span>
+                            }
+                            @if (webhook.Events.Count > 2)
+                            {
+                                <span class="badge bg-secondary">+@(webhook.Events.Count - 2) more</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="badge @(webhook.IsEnabled ? "bg-success" : "bg-secondary")">
+                                @(webhook.IsEnabled ? "Enabled" : "Disabled")
+                            </span>
+                        </td>
+                        <td>
+                            @if (webhook.LastTriggeredAt.HasValue)
+                            {
+                                <span title="@webhook.LastResponseStatus">@webhook.LastTriggeredAt.Value.ToString("g")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" title="View Deliveries" @onclick="() => ShowDeliveries(webhook)">
+                                    <i class="bi bi-list-ul"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" title="Edit" @onclick="() => EditWebhook(webhook)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-success" title="Test" @onclick="() => TestWebhook(webhook)">
+                                    <i class="bi bi-play"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" title="Delete" @onclick="() => DeleteWebhook(webhook)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (!FilteredWebhooks.Any())
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-webhook display-4"></i>
+                <p class="mt-2">No webhooks configured yet.</p>
+                <button class="btn btn-primary" @onclick="ShowAddModal">
+                    <i class="bi bi-plus-lg me-1"></i> Add Your First Webhook
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Webhook Signature Verification</h5>
+    </div>
+    <div class="card-body">
+        <p>All webhook payloads are signed using HMAC-SHA256. The signature is included in the <code>X-Webhook-Signature</code> header.</p>
+        <p>To verify the signature, compute the HMAC-SHA256 hash of the raw request body using your webhook secret, and compare it with the signature header value.</p>
+        <h6>Example (Node.js):</h6>
+        <pre class="bg-light p-3 rounded"><code>const crypto = require('crypto');
+
+function verifyWebhookSignature(payload, signature, secret) {
+    const expected = 'sha256=' + crypto
+        .createHmac('sha256', secret)
+        .update(payload, 'utf8')
+        .digest('hex');
+    return crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expected)
+    );
+}</code></pre>
+    </div>
+</div>
+
+@code {
+    private string _searchTerm = "";
+    private string _statusFilter = "";
+    private bool _showModal = false;
+    private bool _showDeliveriesModal = false;
+    private bool _showTestResultModal = false;
+    private bool _showSecret = false;
+    private WebhookViewModel? _editingWebhook = null;
+    private WebhookViewModel? _selectedWebhook = null;
+    private WebhookFormModel _webhookForm = new();
+    private TestResultModel? _testResult = null;
+
+    private List<WebhookViewModel> _webhooks = new()
+    {
+        new(Guid.NewGuid(), "Slack Notifications", "https://hooks.slack.com/services/xxx",
+            new List<string> { "api.request.completed", "api.request.failed" }, true, 0, DateTime.UtcNow.AddHours(-2), "200 OK", DateTime.UtcNow.AddDays(-5)),
+        new(Guid.NewGuid(), "Discord Bot", "https://discord.com/api/webhooks/xxx",
+            new List<string> { "connector.created", "user.registered" }, true, 0, DateTime.UtcNow.AddDays(-1), "204 NoContent", DateTime.UtcNow.AddDays(-10)),
+        new(Guid.NewGuid(), "Analytics Service", "https://analytics.example.com/webhook",
+            new List<string> { "api.request.completed", "report.generated" }, false, 5, DateTime.UtcNow.AddHours(-6), "500 InternalServerError", DateTime.UtcNow.AddDays(-3))
+    };
+
+    private List<DeliveryViewModel> _deliveries = new();
+
+    private readonly Dictionary<string, string> _availableEvents = new()
+    {
+        { "api.request.completed", "When an API request completes successfully" },
+        { "api.request.failed", "When an API request fails" },
+        { "connector.created", "When a new connector is created" },
+        { "connector.updated", "When a connector is updated" },
+        { "connector.deleted", "When a connector is deleted" },
+        { "user.registered", "When a new user registers" },
+        { "report.generated", "When a report is generated" },
+        { "file.uploaded", "When a file is uploaded" }
+    };
+
+    private IEnumerable<WebhookViewModel> FilteredWebhooks => _webhooks
+        .Where(w => string.IsNullOrEmpty(_searchTerm) ||
+                    w.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    w.Url.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Where(w => string.IsNullOrEmpty(_statusFilter) ||
+                    (_statusFilter == "enabled" && w.IsEnabled) ||
+                    (_statusFilter == "disabled" && !w.IsEnabled));
+
+    private void ShowAddModal()
+    {
+        _editingWebhook = null;
+        _webhookForm = new WebhookFormModel { IsEnabled = true };
+        _showSecret = false;
+        _showModal = true;
+    }
+
+    private void EditWebhook(WebhookViewModel webhook)
+    {
+        _editingWebhook = webhook;
+        _webhookForm = new WebhookFormModel
+        {
+            Name = webhook.Name,
+            Url = webhook.Url,
+            Secret = "",
+            SelectedEvents = new List<string>(webhook.Events),
+            IsEnabled = webhook.IsEnabled
+        };
+        _showSecret = false;
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        _editingWebhook = null;
+    }
+
+    private void ToggleSecretVisibility()
+    {
+        _showSecret = !_showSecret;
+    }
+
+    private void GenerateSecret()
+    {
+        var random = new Random();
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        _webhookForm.Secret = new string(Enumerable.Repeat(chars, 32)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+
+    private void ToggleEvent(string eventKey, bool isChecked)
+    {
+        if (isChecked && !_webhookForm.SelectedEvents.Contains(eventKey))
+        {
+            _webhookForm.SelectedEvents.Add(eventKey);
+        }
+        else if (!isChecked && _webhookForm.SelectedEvents.Contains(eventKey))
+        {
+            _webhookForm.SelectedEvents.Remove(eventKey);
+        }
+    }
+
+    private void SaveWebhook()
+    {
+        if (_editingWebhook == null)
+        {
+            // Create new webhook
+            _webhooks.Add(new WebhookViewModel(
+                Guid.NewGuid(),
+                _webhookForm.Name,
+                _webhookForm.Url,
+                new List<string>(_webhookForm.SelectedEvents),
+                _webhookForm.IsEnabled,
+                0,
+                null,
+                null,
+                DateTime.UtcNow
+            ));
+        }
+        else
+        {
+            // Update existing webhook
+            var index = _webhooks.FindIndex(w => w.Id == _editingWebhook.Id);
+            if (index >= 0)
+            {
+                _webhooks[index] = _editingWebhook with
+                {
+                    Name = _webhookForm.Name,
+                    Url = _webhookForm.Url,
+                    Events = new List<string>(_webhookForm.SelectedEvents),
+                    IsEnabled = _webhookForm.IsEnabled
+                };
+            }
+        }
+
+        CloseModal();
+    }
+
+    private void DeleteWebhook(WebhookViewModel webhook)
+    {
+        _webhooks.Remove(webhook);
+    }
+
+    private void ShowDeliveries(WebhookViewModel webhook)
+    {
+        _selectedWebhook = webhook;
+        // Sample delivery data
+        _deliveries = new List<DeliveryViewModel>
+        {
+            new(Guid.NewGuid(), webhook.Id, "api.request.completed", 200, null, true, 1, 145, DateTime.UtcNow.AddHours(-2), DateTime.UtcNow.AddHours(-2)),
+            new(Guid.NewGuid(), webhook.Id, "api.request.completed", 200, null, true, 1, 89, DateTime.UtcNow.AddHours(-4), DateTime.UtcNow.AddHours(-4)),
+            new(Guid.NewGuid(), webhook.Id, "api.request.failed", 500, "Connection refused", false, 1, 30012, DateTime.UtcNow.AddHours(-6), DateTime.UtcNow.AddHours(-6))
+        };
+        _showDeliveriesModal = true;
+    }
+
+    private void CloseDeliveriesModal()
+    {
+        _showDeliveriesModal = false;
+        _selectedWebhook = null;
+        _deliveries.Clear();
+    }
+
+    private void TestWebhook(WebhookViewModel webhook)
+    {
+        // Simulate test result
+        _testResult = new TestResultModel(true, 200, "{\"received\": true}", null, 234);
+        _showTestResultModal = true;
+    }
+
+    private void CloseTestResultModal()
+    {
+        _showTestResultModal = false;
+        _testResult = null;
+    }
+
+    private void RetryDelivery(Guid deliveryId)
+    {
+        // TODO: Implement retry via API
+        var delivery = _deliveries.FirstOrDefault(d => d.Id == deliveryId);
+        if (delivery != null)
+        {
+            var index = _deliveries.IndexOf(delivery);
+            _deliveries[index] = delivery with { IsSuccess = true, ResponseStatusCode = 200, ErrorMessage = null, AttemptNumber = delivery.AttemptNumber + 1 };
+        }
+    }
+
+    private record WebhookViewModel(
+        Guid Id,
+        string Name,
+        string Url,
+        List<string> Events,
+        bool IsEnabled,
+        int FailureCount,
+        DateTime? LastTriggeredAt,
+        string? LastResponseStatus,
+        DateTime CreatedAt);
+
+    private record DeliveryViewModel(
+        Guid Id,
+        Guid WebhookId,
+        string Event,
+        int? ResponseStatusCode,
+        string? ErrorMessage,
+        bool IsSuccess,
+        int AttemptNumber,
+        long DurationMs,
+        DateTime TriggeredAt,
+        DateTime? CompletedAt);
+
+    private record TestResultModel(
+        bool IsSuccess,
+        int? StatusCode,
+        string? ResponseBody,
+        string? ErrorMessage,
+        long DurationMs);
+
+    private class WebhookFormModel
+    {
+        public string Name { get; set; } = "";
+        public string Url { get; set; } = "";
+        public string Secret { get; set; } = "";
+        public List<string> SelectedEvents { get; set; } = new();
+        public bool IsEnabled { get; set; }
+    }
+}

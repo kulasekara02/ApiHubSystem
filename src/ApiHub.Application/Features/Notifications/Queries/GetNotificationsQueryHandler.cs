@@ -21,13 +21,13 @@ public class GetNotificationsQueryHandler : IRequestHandler<GetNotificationsQuer
     public async Task<PaginatedList<NotificationDto>> Handle(GetNotificationsQuery request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.UserId;
-        if (userId == null)
+        if (!userId.HasValue)
         {
             return new PaginatedList<NotificationDto>(new List<NotificationDto>(), 0, request.PageNumber, request.PageSize);
         }
 
         var query = _context.Notifications
-            .Where(n => n.UserId == Guid.Parse(userId))
+            .Where(n => n.UserId == userId.Value)
             .AsNoTracking();
 
         if (request.IsRead.HasValue)

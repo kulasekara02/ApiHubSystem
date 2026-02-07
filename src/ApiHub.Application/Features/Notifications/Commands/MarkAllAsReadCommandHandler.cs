@@ -24,14 +24,13 @@ public class MarkAllAsReadCommandHandler : IRequestHandler<MarkAllAsReadCommand,
     public async Task<Result<int>> Handle(MarkAllAsReadCommand request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.UserId;
-        if (userId == null)
+        if (!userId.HasValue)
         {
             return Result<int>.Failure("User not authenticated");
         }
 
-        var userGuid = Guid.Parse(userId);
         var unreadNotifications = await _context.Notifications
-            .Where(n => n.UserId == userGuid && !n.IsRead)
+            .Where(n => n.UserId == userId.Value && !n.IsRead)
             .ToListAsync(cancellationToken);
 
         var count = unreadNotifications.Count;

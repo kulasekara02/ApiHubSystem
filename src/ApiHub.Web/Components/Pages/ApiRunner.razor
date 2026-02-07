@@ -1,6 +1,17 @@
 @page "/api-runner"
+@inject ApiHub.Web.Services.ApiRunnerStateService ApiRunnerState
+@implements IDisposable
 
 <PageTitle>API Runner - ApiHub</PageTitle>
+
+@if (_fromTemplate)
+{
+    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+        <i class="bi bi-file-earmark-code me-2"></i>
+        <strong>Template loaded!</strong> The form has been populated from your selected template. Modify as needed and send your request.
+        <button type="button" class="btn-close" @onclick="DismissTemplateAlert"></button>
+    </div>
+}
 
 <div class="row g-4">
     <div class="col-md-6">
@@ -43,6 +54,13 @@
                     <textarea class="form-control font-monospace" rows="3"
                               placeholder='{"Content-Type": "application/json"}'
                               @bind="_headers"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Query Parameters (JSON)</label>
+                    <textarea class="form-control font-monospace" rows="2"
+                              placeholder='{"page": "1", "limit": "10"}'
+                              @bind="_queryParams"></textarea>
                 </div>
 
                 <div class="mb-3">
@@ -119,8 +137,10 @@
     private string _endpoint = "";
     private string _headers = "";
     private string _body = "";
+    private string _queryParams = "";
     private bool _saveAsDataset = false;
     private bool _isLoading = false;
+    private bool _fromTemplate = false;
     private ResponseViewModel? _response;
 
     private List<ConnectorOption> _connectors = new()
@@ -131,6 +151,49 @@
         new("4", "GitHub API"),
         new("5", "OpenWeather")
     };
+
+    protected override void OnInitialized()
+    {
+        // Subscribe to state changes
+        ApiRunnerState.OnChange += HandleStateChange;
+
+        // Check if there's a pending template
+        if (ApiRunnerState.HasPendingTemplate)
+        {
+            LoadFromTemplate();
+        }
+    }
+
+    private void HandleStateChange()
+    {
+        if (ApiRunnerState.HasPendingTemplate)
+        {
+            LoadFromTemplate();
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void LoadFromTemplate()
+    {
+        _selectedConnector = ApiRunnerState.SelectedConnectorId ?? "";
+        _method = ApiRunnerState.Method ?? "GET";
+        _endpoint = ApiRunnerState.Endpoint ?? "";
+        _headers = ApiRunnerState.Headers ?? "";
+        _body = ApiRunnerState.Body ?? "";
+        _queryParams = ApiRunnerState.QueryParams ?? "";
+        _fromTemplate = true;
+        ApiRunnerState.ClearPendingTemplate();
+    }
+
+    public void Dispose()
+    {
+        ApiRunnerState.OnChange -= HandleStateChange;
+    }
+
+    private void DismissTemplateAlert()
+    {
+        _fromTemplate = false;
+    }
 
     private async Task SendRequest()
     {

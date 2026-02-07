@@ -20,13 +20,13 @@ public class GetUnreadCountQueryHandler : IRequestHandler<GetUnreadCountQuery, i
     public async Task<int> Handle(GetUnreadCountQuery request, CancellationToken cancellationToken)
     {
         var userId = _currentUserService.UserId;
-        if (userId == null)
+        if (!userId.HasValue)
         {
             return 0;
         }
 
         return await _context.Notifications
-            .Where(n => n.UserId == Guid.Parse(userId) && !n.IsRead)
+            .Where(n => n.UserId == userId.Value && !n.IsRead)
             .CountAsync(cancellationToken);
     }
 }
