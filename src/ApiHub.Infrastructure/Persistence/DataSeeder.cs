@@ -2,6 +2,7 @@ using ApiHub.Domain.Entities;
 using ApiHub.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ApiHub.Infrastructure.Persistence;
@@ -14,8 +15,17 @@ public static class DataSeeder
         var context = scope.ServiceProvider.GetRequiredService<DbContext.ApplicationDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
-        await context.Database.MigrateAsync();
+        var dbProvider = configuration["Database:Provider"]?.ToLower() ?? "postgresql";
+        if (dbProvider == "inmemory")
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
+        else
+        {
+            await context.Database.MigrateAsync();
+        }
 
         await SeedRolesAsync(roleManager);
         await SeedUsersAsync(userManager);

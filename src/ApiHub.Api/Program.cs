@@ -81,20 +81,6 @@ builder.Services.AddEndpointsApiExplorer();
 // Swagger
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "ApiHub API",
-        Version = "v1",
-        Description = "API Hub System - Connect and manage external APIs"
-    });
-
-    options.SwaggerDoc("v2", new OpenApiInfo
-    {
-        Title = "ApiHub API",
-        Version = "v2",
-        Description = "API Hub System - Connect and manage external APIs (v2)"
-    });
-
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -126,8 +112,12 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.ConfigureOptions<ConfigureSwaggerOptions>();
 
 // Health Checks
-builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!, name: "database");
+var healthChecks = builder.Services.AddHealthChecks();
+var dbProvider = builder.Configuration["Database:Provider"]?.ToLower() ?? "postgresql";
+if (dbProvider != "inmemory")
+{
+    healthChecks.AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!, name: "database");
+}
 
 // CORS
 builder.Services.AddCors(options =>

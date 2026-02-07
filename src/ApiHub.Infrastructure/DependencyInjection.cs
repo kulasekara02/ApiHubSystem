@@ -22,15 +22,21 @@ public static class DependencyInjection
     {
         // Database
         var connectionString = configuration.GetConnectionString("DefaultConnection");
+        var provider = configuration["Database:Provider"]?.ToLower() ?? "postgresql";
+
         services.AddDbContext<ApplicationDbContext>(options =>
         {
-            if (configuration["Database:Provider"]?.ToLower() == "sqlserver")
+            switch (provider)
             {
-                options.UseSqlServer(connectionString);
-            }
-            else
-            {
-                options.UseNpgsql(connectionString);
+                case "sqlserver":
+                    options.UseSqlServer(connectionString);
+                    break;
+                case "inmemory":
+                    options.UseInMemoryDatabase("ApiHubDb");
+                    break;
+                default:
+                    options.UseNpgsql(connectionString);
+                    break;
             }
         });
 
